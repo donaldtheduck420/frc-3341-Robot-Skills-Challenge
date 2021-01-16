@@ -4,64 +4,75 @@
 
 package frc.robot;
 
-import edu.wpi.first.wpilibj.Joystick;
-import edu.wpi.first.wpilibj.PWMVictorSPX;
-import edu.wpi.first.wpilibj.TimedRobot;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.hal.HAL;
+import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.livewindow.LiveWindow;
+import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
 
 /**
- * The VM is configured to automatically run this class, and to call the functions corresponding to
- * each mode, as described in the TimedRobot documentation. If you change the name of this class or
- * the package after creating this project, you must also update the manifest file in the resource
- * directory.
+ * The VM is configured to automatically run this class. If you change the name of this class or the
+ * package after creating this project, you must also update the build.gradle file in the project.
  */
-public class Robot extends TimedRobot {
-  private final DifferentialDrive m_robotDrive =
-      new DifferentialDrive(new PWMVictorSPX(0), new PWMVictorSPX(1));
-  private final Joystick m_stick = new Joystick(0);
-  private final Timer m_timer = new Timer();
-
-  /**
-   * This function is run when the robot is first started up and should be used for any
-   * initialization code.
-   */
-  @Override
+public class Robot extends RobotBase {
   public void robotInit() {}
 
-  /** This function is run once each time the robot enters autonomous mode. */
-  @Override
-  public void autonomousInit() {
-    m_timer.reset();
-    m_timer.start();
-  }
+  public void disabled() {}
 
-  /** This function is called periodically during autonomous. */
+  public void autonomous() {}
+
+  public void teleop() {}
+
+  public void test() {}
+
+  private volatile boolean m_exit;
+
+  @SuppressWarnings("PMD.CyclomaticComplexity")
   @Override
-  public void autonomousPeriodic() {
-    // Drive for 2 seconds
-    if (m_timer.get() < 2.0) {
-      m_robotDrive.arcadeDrive(0.5, 0.0); // drive forwards half speed
-    } else {
-      m_robotDrive.stopMotor(); // stop robot
+  public void startCompetition() {
+    robotInit();
+
+    // Tell the DS that the robot is ready to be enabled
+    HAL.observeUserProgramStarting();
+
+    while (!Thread.currentThread().isInterrupted() && !m_exit) {
+      if (isDisabled()) {
+        m_ds.InDisabled(true);
+        disabled();
+        m_ds.InDisabled(false);
+        while (isDisabled()) {
+          m_ds.waitForData();
+        }
+      } else if (isAutonomous()) {
+        m_ds.InAutonomous(true);
+        autonomous();
+        m_ds.InAutonomous(false);
+        while (isAutonomousEnabled()) {
+          m_ds.waitForData();
+        }
+      } else if (isTest()) {
+        LiveWindow.setEnabled(true);
+        Shuffleboard.enableActuatorWidgets();
+        m_ds.InTest(true);
+        test();
+        m_ds.InTest(false);
+        while (isTest() && isEnabled()) {
+          m_ds.waitForData();
+        }
+        LiveWindow.setEnabled(false);
+        Shuffleboard.disableActuatorWidgets();
+      } else {
+        m_ds.InOperatorControl(true);
+        teleop();
+        m_ds.InOperatorControl(false);
+        while (isOperatorControlEnabled()) {
+          m_ds.waitForData();
+        }
+      }
     }
   }
 
-  /** This function is called once each time the robot enters teleoperated mode. */
   @Override
-  public void teleopInit() {}
-
-  /** This function is called periodically during teleoperated mode. */
-  @Override
-  public void teleopPeriodic() {
-    m_robotDrive.arcadeDrive(m_stick.getY(), m_stick.getX());
+  public void endCompetition() {
+    m_exit = true;
   }
-
-  /** This function is called once each time the robot enters test mode. */
-  @Override
-  public void testInit() {}
-
-  /** This function is called periodically during test mode. */
-  @Override
-  public void testPeriodic() {}
 }
